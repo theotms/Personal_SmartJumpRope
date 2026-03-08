@@ -94,7 +94,7 @@ static uint32_t g_jump_baseline = 0;
 // Sensor snapshot (updated by the rest of firmware)
 static uint32_t g_jump_total = 0;
 static uint8_t g_hr_bpm = 0;
-static uint16_t g_accel_mag = 0;
+static uint16_t g_spo2_percent = 0;
 static uint8_t g_flags = 0;
 
 // Simple critical section to make snapshot reads/writes consistent
@@ -112,7 +112,7 @@ static inline uint32_t uptime_ms(void) {
 static void build_packet(jr_packet_v1_t *out) {
   uint32_t jump_total;
   uint8_t hr;
-  uint16_t accel;
+  uint16_t spo2;
   uint8_t flags;
   uint32_t baseline;
   bool reset_on_start;
@@ -120,7 +120,7 @@ static void build_packet(jr_packet_v1_t *out) {
   portENTER_CRITICAL(&g_lock);
   jump_total = g_jump_total;
   hr = g_hr_bpm;
-  accel = g_accel_mag;
+  spo2 = g_spo2_percent;
   flags = g_flags;
   baseline = g_jump_baseline;
   reset_on_start = g_reset_on_start;
@@ -137,7 +137,7 @@ static void build_packet(jr_packet_v1_t *out) {
   out->timestamp_ms = uptime_ms();
   out->jump_count = jump_to_send;
   out->heart_rate_bpm = hr;
-  out->accel_mag = accel;
+  out->spo2_percent = spo2;
   out->flags = flags;
 }
 
@@ -403,12 +403,12 @@ void jr_ble_init(void) {
 }
 
 void jr_ble_set_sensor_snapshot(uint32_t jump_count_total,
-                                uint8_t heart_rate_bpm, uint16_t accel_mag,
+                                uint8_t heart_rate_bpm, uint16_t spo2_percent,
                                 uint8_t flags) {
   portENTER_CRITICAL(&g_lock);
   g_jump_total = jump_count_total;
   g_hr_bpm = heart_rate_bpm;
-  g_accel_mag = accel_mag;
+  g_spo2_percent = spo2_percent;
   g_flags = flags;
   portEXIT_CRITICAL(&g_lock);
 }

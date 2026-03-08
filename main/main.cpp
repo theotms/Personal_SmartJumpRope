@@ -20,6 +20,10 @@
 #define JUMP_UPDATE_HZ 100
 #define DISPLAY_UPDATE_HZ 4
 #define CALIBRATION_TIME_MS 3000
+// Quick-fix authoritative jump counter: timing config 200/200 (index 2)
+#define SELECTED_TIMING_CONFIG_INDEX 2
+static_assert(NUM_TIMING_CONFIGS > SELECTED_TIMING_CONFIG_INDEX,
+              "SELECTED_TIMING_CONFIG_INDEX is out of range");
 
 // MAX30102 buffer: algorithm needs at least 100 samples at 100 Hz = 1 second
 #define SPO2_BUFFER_SIZE 100
@@ -128,14 +132,15 @@ void displayTask(void *param) {
       // ===== ACCEL Z summary =====
       display->drawString(20, 0, "JUMP TOTAL");
 
-      uint32_t totalX, totalY, totalZ;
+      uint32_t countsZ[NUM_TIMING_CONFIGS];
       float rateX, rateY, rateZ;
       {
         MutexGuard lock(dataMutex);
-        accelDetector->getTotalJumps(totalX, totalY, totalZ);
+        accelDetector->getCounts(nullptr, nullptr, countsZ);
         accelDetector->getAverageRates(rateX, rateY, rateZ);
       }
-      snprintf(line, sizeof(line), "Jumps: %lu", totalZ);
+      const uint32_t selectedZCount = countsZ[SELECTED_TIMING_CONFIG_INDEX];
+      snprintf(line, sizeof(line), "Jumps: %lu", selectedZCount);
       display->drawString(15, 25, line);
       snprintf(line, sizeof(line), "Rate:  %.0f/min", rateZ);
       display->drawString(15, 42, line);
@@ -181,14 +186,13 @@ void displayTask(void *param) {
    ========================= */
 void bleUpdateTask(void *param) {
   while (true) {
-    uint32_t selectedJumpCount;
+    uint32_t countsZ[NUM_TIMING_CONFIGS];
 
     {
       MutexGuard lock(dataMutex);
-      accelDetector->getCounts(nullptr, nullptr, accelCountsZ);
+      accelDetector->getCounts(nullptr, nullptr, countsZ);
     }
-
-    selectedJumpCount = accelCountsZ[3]; // look this up in the jump.cpp
+    const uint32_t selectedZCount = countsZ[SELECTED_TIMING_CONFIG_INDEX];
 
     int32_t hr;
     int8_t hrValid;
@@ -205,7 +209,7 @@ void bleUpdateTask(void *param) {
     // Only send real SpO2 when the algorithm says it's valid; otherwise 0
     uint8_t hr_to_send = hrValid ? (uint8_t)hr : 0;
     uint8_t spo2_to_send = spo2Valid ? (uint8_t)spo2 : 0;
-    jr_ble_set_sensor_snapshot(selectedJumpCount, hr_to_send, spo2_to_send, 0);
+    jr_ble_set_sensor_snapshot(selectedZCount, hr_to_send, spo2_to_send, 0);
 
     vTaskDelay(pdMS_TO_TICKS(200));
   }

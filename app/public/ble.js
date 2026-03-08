@@ -73,21 +73,26 @@ async function connectBLE() {
 
 function onData(event) {
     const v = event.target.value; // DataView
+    if (!v || v.byteLength < 12) {
+        console.warn("BLE packet too short", v ? v.byteLength : 0);
+        setStatus("Invalid BLE packet");
+        return;
+    }
 
     const ts = v.getUint32(0, true);
     const jumps = v.getUint32(4, true);
     const hr = v.getUint8(8);
-    const accelMag = v.getUint16(9, true);
+    const spo2 = v.getUint16(9, true);
     const flags = v.getUint8(11);
 
     // Update UI
     const jumpsEl = document.getElementById("jumpCount");
     const hrEl = document.getElementById("heartRate");
-    const accelEl = document.getElementById("accelMag");
+    const spo2El = document.getElementById("spo2");
 
     if (jumpsEl) jumpsEl.textContent = String(jumps);
     if (hrEl) hrEl.textContent = hr === 0 ? "-" : String(hr);
-    if (accelEl) accelEl.textContent = String(accelMag);
+    if (spo2El) spo2El.textContent = spo2 === 0 ? "-" : String(spo2);
 
     // Track for saving later
     workout.lastJumpCount = jumps;
@@ -96,7 +101,7 @@ function onData(event) {
         if (hr > workout.maxHr) workout.maxHr = hr;
     }
 
-    console.log({ ts, jumps, hr, accelMag, flags });
+    console.log({ ts, jumps, hr, spo2, flags });
 }
 
 async function startStreaming() {
@@ -174,11 +179,11 @@ async function handleStopClick() {
         // Optional: reset UI
         const jump_counts = document.getElementById("jumpCount");
         const hr = document.getElementById("heartRate");
-        const acceleration = document.getElementById("accelMag");
+        const spo2 = document.getElementById("spo2");
 
         if (jump_counts) jump_counts.textContent = "0";
         if (hr) hr.textContent = "-";
-        if (acceleration) acceleration.textContent = "0";
+        if (spo2) spo2.textContent = "-";
     } catch (e) {
         setStatus(String(e));
     }
