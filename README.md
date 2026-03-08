@@ -1,26 +1,42 @@
-# smartjumprope
+# Recent Updates
 
-Repository for IOT Project at Metropolia University of Applied Sciences.
+## BLE/Web Data Contract Cleanup
 
-Front Page: https://amaan-11.github.io/smartjumprope
+- BLE packet field at offset `9` was renamed semantically from acceleration to SpO2.
+- `jr_packet_v1_t` now uses `spo2_percent` instead of `accel_mag`.
+- `jr_ble_set_sensor_snapshot(...)` parameter naming was updated to match SpO2 semantics.
+- Flags comment updated to reflect `bit1=SpO2 valid`.
 
-Data Page: https://amaan-11.github.io/smartjumprope/data.html
+Files:
 
-To-Do 1
+- `components/ble/jr_ble.h`
+- `components/ble/jr_ble.cpp`
 
--	First 3d model for bearing wheel			Amaan
--	Raw 3d model of jumping rope			Amaan
--	Test sensors						Nischal
--	Test vibration motors and display			Nischal
--	Test battery (charging)				Daniel
--	Planning web app (page) for data collection		Daniel
--	Planning database to save data			Amaan
--	Soldering first  board version 				Theo/Daniel
--	Check required voltages, currents			Theo/Daniel
+## Web BLE Parser Hardening
 
+- Added packet-size guard in browser BLE handler: reject packets with `byteLength < 12`.
+- On malformed packet, app now logs a warning and sets BLE status to `Invalid BLE packet` instead of crashing.
 
-deadline:	1.1.2026
+File:
 
-[Nischal]
-02.12 - Setting up the ESP-extension in V.S.code. Coding the beginning of reading the sensors.
-03.12 - Setting up the dev platform. 
+- `app/public/ble.js`
+
+## Web UI Label/Data Mapping Fix
+
+- Live metric label changed from `Acceleration` to `SpO2`.
+- UI now displays parsed SpO2 value from BLE offset `9`.
+
+Files:
+
+- `app/public/data.html`
+- `app/public/ble.js`
+
+## Quick Fix For Inflated Jump Totals
+
+- Replaced summed multi-config jump total usage with one authoritative timing config for official jump count.
+- Selected config is `200/200 ms` (index `2`) via `SELECTED_TIMING_CONFIG_INDEX`.
+- OLED summary page and BLE `jump_count` now both use this selected config count.
+
+File:
+
+- `main/main.cpp`
