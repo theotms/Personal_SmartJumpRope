@@ -4,6 +4,9 @@ const JR_CTRL_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 const JR_DATA_UUID    = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 
 let device, server, ctrlChar, dataChar;
+const CALIBRATION_MS = 3000;
+const STOP_QUIET_MS = 600;
+const STOP_TIMEOUT_MS = 3000;
 
 // ---- Simple workout state (no users) ----
 const workout = {
@@ -14,6 +17,9 @@ const workout = {
     maxHr: 0,
     deviceName: "JRope-C6",
 };
+
+let lastPacketRxMs = 0;
+let countdownTimer = null;
 
 function nowMs() {
     return Date.now();
@@ -84,6 +90,7 @@ function onData(event) {
     const hr = v.getUint8(8);
     const spo2 = v.getUint16(9, true);
     const flags = v.getUint8(11);
+    lastPacketRxMs = nowMs();
 
     // Update UI
     const jumpsEl = document.getElementById("jumpCount");
@@ -101,6 +108,12 @@ function onData(event) {
         if (hr > workout.maxHr) workout.maxHr = hr;
     }
 
+    if ((flags & (1 << 2)) !== 0) {
+        setStatus("Calibrating... Start jumping in a moment");
+    } else if (workout.active) {
+        setStatus("Workout running");
+    }
+
     console.log({ ts, jumps, hr, spo2, flags });
 }
 
@@ -112,6 +125,47 @@ async function startStreaming() {
 async function stopStreaming() {
     if (!ctrlChar) return;
     await ctrlChar.writeValue(Uint8Array.from([0x00]));
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function showCalibrationCountdown() {
+    if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+    }
+
+    const start = nowMs();
+    const tick = () => {
+        const elapsed = nowMs() - start;
+        const remaining = Math.max(0, CALIBRATION_MS - elapsed);
+        const secondsLeft = Math.ceil(remaining / 1000);
+
+        if (remaining > 0) {
+            setStatus(`Calibrating... start jumping in ${secondsLeft}`);
+            return;
+        }
+
+        setStatus("Workout running");
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+    };
+
+    tick();
+    countdownTimer = setInterval(tick, 200);
+}
+
+async function waitForBleQuiet(quietMs = STOP_QUIET_MS, timeoutMs = STOP_TIMEOUT_MS) {
+    const begin = nowMs();
+    while (nowMs() - begin < timeoutMs) {
+        const idleFor = nowMs() - lastPacketRxMs;
+        if (idleFor >= quietMs) {
+            return;
+        }
+        await sleep(100);
+    }
 }
 
 function startWorkout() {
@@ -155,8 +209,9 @@ async function saveWorkoutToDb() {
 
 async function handleStartClick() {
     try {
-        startWorkout();
         await startStreaming();
+        startWorkout();
+        showCalibrationCountdown();
     } catch (e) {
         setStatus(String(e));
     }
@@ -164,9 +219,9 @@ async function handleStartClick() {
 
 async function handleStopClick() {
     try {
-        workout.active = false;
-
         await stopStreaming();
+        await waitForBleQuiet();
+        workout.active = false;
 
         // Save workout to DB
         await saveWorkoutToDb();

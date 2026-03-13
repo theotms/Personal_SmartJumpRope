@@ -59,6 +59,7 @@ public:
   void getAverageRates(float &rateX, float &rateY, float &rateZ) const;
 
   bool isCalibrated() const;
+  void resetSession();
 
   const char *getName() const;
 

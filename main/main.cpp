@@ -53,6 +53,21 @@ static int8_t g_hr_valid = 0;
 static float g_spo2 = 0.0f;
 static int8_t g_spo2_valid = 0;
 
+static void restartWorkoutSession() {
+  if (!accelDetector || !dataMutex) {
+    return;
+  }
+
+  {
+    MutexGuard lock(dataMutex);
+    accelDetector->resetSession();
+  }
+
+  calibrationStartTime = xTaskGetTickCount() * portTICK_PERIOD_MS;
+  calibrationPhase = true;
+  ESP_LOGI(TAG, "Workout restart requested via BLE START");
+}
+
 /* =========================
    JUMP DETECTION TASK
    ========================= */
@@ -185,7 +200,15 @@ void displayTask(void *param) {
    BLE UPDATE TASK
    ========================= */
 void bleUpdateTask(void *param) {
+  bool prevStreaming = false;
+
   while (true) {
+    const bool streaming = jr_ble_is_streaming();
+    if (streaming && !prevStreaming) {
+      restartWorkoutSession();
+    }
+    prevStreaming = streaming;
+
     uint32_t countsZ[NUM_TIMING_CONFIGS];
 
     {
@@ -209,7 +232,25 @@ void bleUpdateTask(void *param) {
     // Only send real SpO2 when the algorithm says it's valid; otherwise 0
     uint8_t hr_to_send = hrValid ? (uint8_t)hr : 0;
     uint8_t spo2_to_send = spo2Valid ? (uint8_t)spo2 : 0;
-    jr_ble_set_sensor_snapshot(selectedZCount, hr_to_send, spo2_to_send, 0);
+
+    uint32_t jumps_to_send = selectedZCount;
+    if (calibrationPhase) {
+      jumps_to_send = 0;
+    }
+
+    // Flags: bit0=HR valid, bit1=SpO2 valid, bit2=calibrating
+    uint8_t flags = 0;
+    if (hrValid) {
+      flags |= (1u << 0);
+    }
+    if (spo2Valid) {
+      flags |= (1u << 1);
+    }
+    if (calibrationPhase) {
+      flags |= (1u << 2);
+    }
+
+    jr_ble_set_sensor_snapshot(jumps_to_send, hr_to_send, spo2_to_send, flags);
 
     vTaskDelay(pdMS_TO_TICKS(200));
   }
