@@ -1,28 +1,3 @@
-# System Block Diagram
-
-```mermaid
-flowchart LR
-  subgraph FW[ESP32-C6 Firmware]
-    A["MPU6050 Gyro/Accel<br/>components/gyro"] --> B["SensorReading Task"]
-    B --> C["JumpDetector<br/>main/jumpDetectionTask"]
-    D["MAX30102 HR/SpO2<br/>components/heartbeatSensor"] --> E["heartRateTask + RF Algorithm"]
-    C --> F["Shared Metrics (jumps, rates)"]
-    E --> G["Shared Vitals (HR, SpO2)"]
-    F --> H["displayTask"]
-    G --> H
-    F --> I["bleUpdateTask"]
-    G --> I
-    H --> J["OLED Display<br/>components/display"]
-    I --> K["jr_ble service<br/>components/ble"]
-  end
-
-  K <--> L["Web App (Web Bluetooth)<br/>app/public/ble.js"]
-  L --> M["UI Dashboard<br/>app/public/data.html"]
-  L --> N["Express API<br/>app/private/webApp.js"]
-  N <--> O["SQLite DB<br/>app/private/data_base.js"]
-```
-
-
 # Recent Updates
 
 ## BLE/Web Data Contract Cleanup
